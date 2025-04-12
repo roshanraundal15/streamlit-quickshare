@@ -110,22 +110,23 @@ if page == "📈 Overview":
     commodity = st.sidebar.selectbox("Select Commodity", commodities)
     location = st.sidebar.selectbox("Select Location", locations)
 
-    # Filter data to get relevant varieties for selected commodity
     filtered_varieties = data[data["Commodity"] == commodity]["Variety"].dropna().unique()
     variety = st.sidebar.selectbox("Select Variety", filtered_varieties)
 
-    # Inputs for farmer
     investment = st.sidebar.number_input("Investment (₹)", min_value=0.0, step=1000.0, value=5000.0)
     quintal_yield = st.sidebar.number_input("Quintal Yield", min_value=0.0, step=1.0, value=10.0)
-
+    # ✅ NEW: Quality Input
+    quality = st.sidebar.selectbox("Crop Quality", ["Average", "Good", "Bad"], index=0)
     forecast_days = st.sidebar.slider("Forecast Days", 15, 120, 30)
+
+    
 
     today = pd.Timestamp.today()
     one_year_ago = today - pd.DateOffset(years=1)
 
     df = data[(data['Commodity'] == commodity) & 
               (data['District'] == location) & 
-              (data['Variety'] == variety) &
+              (data['Variety'] == variety) & 
               (data['Date'] >= one_year_ago)].sort_values('Date')
 
     if df.empty:
@@ -133,7 +134,6 @@ if page == "📈 Overview":
         st.stop()
 
     df_prophet = df[['Date', 'Price_per_kg']].rename(columns={'Date': 'ds', 'Price_per_kg': 'y'})
-
     model = Prophet()
     model.fit(df_prophet)
     future = model.make_future_dataframe(periods=forecast_days)
@@ -142,12 +142,25 @@ if page == "📈 Overview":
     st.title(f"📈 {commodity} Price Forecast Overview ({location})")
     col1, col2, col3 = st.columns(3)
     col1.metric("Latest Price", f"₹{df_prophet['y'].iloc[-1]:.2f}")
+
+    # Calculate forecasted price
     forecast_end_price = forecast['yhat'].iloc[-1]
+
+    # ✅ Apply Quality Logic
+    import random
+    if quality == "Good":
+        forecast_end_price += random.choice([2.444889, 3.222])
+    elif quality == "Bad":
+        forecast_end_price -= random.choice([1.78, 2.34])
+
     col2.metric("Forecast End Price", f"₹{forecast_end_price:.2f}")
 
     # Profit Calculation
     profit = (quintal_yield * 100 * forecast_end_price) - investment
     col3.metric("💰 Projected Profit", f"₹{profit:,.2f}")
+
+    
+
 
     st.subheader("📅 Monthly Average Price")
     monthly_df = df_prophet.copy()
